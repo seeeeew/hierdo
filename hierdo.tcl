@@ -1,8 +1,10 @@
 #!/usr/bin/env tclsh
 
 set windowtitle {Hierarchical ToDo}
-set version {0.4.1}
-set license {Copyright (c) 2013 Sewan Aleanakian <sewan@nyox.de>
+set version {0.4.2}
+set license {The MIT License (MIT)
+
+Copyright (c) 2013 Sewan Aleanakian <sewan@nyox.de>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -27,33 +29,9 @@ package require Tk
 package require tile
 package require msgcat
 namespace import ::msgcat::mc
-#::msgcat::mcload [file join [file dirname [info script]] msgs]
+tk appname hierdo
+wm withdraw .
 
-::msgcat::mcmset de_de {
-	title {Titel}
-	effort {Aufwand}
-	cost {Kosten}
-	note {Notiz}
-	new {Neu}
-	new_item {Neuer Knoten}
-	paste {Einfügen}
-	before {davor}
-	at_start {am Anfang}
-	at_end {am Ende}
-	copy {Kopieren}
-	cut {Ausschneiden}
-	delete {Löschen}
-	finished {Erledigt}
-	unfinished {Unerledigt}
-	all_finished {Alle erledigt}
-	all_unfinished {Alle unerledigt}
-	open_all {Alle aufklappen}
-	close_all {Alle zuklappen}
-	information {Informationen}
-	version {Version}
-	license {Lizenz}
-	close {Schließen}
-}
 ::msgcat::mcmset {} {
 	title {Title}
 	effort {Effort}
@@ -72,16 +50,66 @@ namespace import ::msgcat::mc
 	unfinished {Unfinished}
 	all_finished {All finished}
 	all_unfinished {All unfinished}
-	open_all {Open all}
-	close_all {Close all}
+	expand_all {Expand all}
+	collapse_all {Collapse all}
 	information {Information}
 	version {Version}
 	license {License}
 	close {Close}
+	already_running {Another instance of this program seems to be already running, but does not respond. Start anyway?}
+}
+::msgcat::mcmset de_de {
+	title {Titel}
+	effort {Aufwand}
+	cost {Kosten}
+	note {Notiz}
+	new {Neu}
+	new_item {Neuer Knoten}
+	paste {Einfügen}
+	before {davor}
+	at_start {am Anfang}
+	at_end {am Ende}
+	copy {Kopieren}
+	cut {Ausschneiden}
+	delete {Löschen}
+	finished {Erledigt}
+	unfinished {Unerledigt}
+	all_finished {Alle erledigt}
+	all_unfinished {Alle unerledigt}
+	expand_all {Alle aufklappen}
+	collapse_all {Alle zuklappen}
+	information {Informationen}
+	version {Version}
+	license {Lizenz}
+	close {Schließen}
+	already_running {Eine andere Instanz des Programms scheint bereits gestartet zu sein, antwortet aber nicht. Trotzdem starten?}
+}
+::msgcat::mcload [file join [file dirname [info script]] msgs]
+
+set lockfile [file join $env(HOME) .hierdo_lock]
+if {[file exists $lockfile]} {
+	set lockfid [open $lockfile {RDONLY}]
+	set appname [string trim [read $lockfid]]
+	close $lockfid
+	if {$appname != [tk appname] && ![catch {send $appname raise .}]} {
+		exit
+	} else {
+		set answer [tk_messageBox -title $windowtitle -message [mc already_running] -icon warning -type yesno]
+		if {$answer != yes} {
+			exit
+		}
+	}
+}
+set lockfid [open $lockfile {WRONLY CREAT TRUNC}]
+puts $lockfid [tk appname]
+close $lockfid
+
+if {![catch {package require Tclx}]} {
+	signal trap {SIGINT SIGTERM} quit
 }
 
-
 # General Tk stuff
+wm deiconify .
 bind Treeview <Double-1> {}
 bind Treeview <Return> {}
 bind Text <Control-a> {%W tag add sel 0.0 {end - 1 chars};%W mark set insert end}
@@ -89,7 +117,7 @@ bind Text <<Paste>> {note_paste %W}
 bind TEntry <Control-a> {%W selection range 0 end; %W icursor end}
 bind TSpinbox <Control-a> {%W selection range 0 end; %W icursor end}
 
-wm title . {Hierarchical ToDo}
+wm title . $windowtitle
 wm minsize . 400 300
 
 
@@ -218,8 +246,8 @@ proc show_popup {X Y x y} {
 	.treemenu add command -label [expr {[llength [.tree children $clicked]] ? [mc all_finished] : [mc finished]}] -command {item_complete} -state [expr {$clicked == {} ? {disabled} : {normal}}]
 	.treemenu add command -label [expr {[llength [.tree children $clicked]] ? [mc all_unfinished] : [mc unfinished]}] -command {item_uncomplete} -state [expr {$clicked == {} ? {disabled} : {normal}}]
 	.treemenu add separator
-	.treemenu add command -label [mc open_all] -command {tree_open}
-	.treemenu add command -label [mc close_all] -command {tree_close}
+	.treemenu add command -label [mc expand_all] -command {tree_expand $clicked}
+	.treemenu add command -label [mc collapse_all] -command {tree_collapse $clicked}
 	.treemenu add separator
 	.treemenu add command -label [mc information] -command {show_info}
 
@@ -281,15 +309,15 @@ proc item_new {position} {
 	recalc
 	save_tree
 }
-proc tree_open {{parent {}}} {
+proc tree_expand {{parent {}}} {
 	foreach item [.tree children $parent] {
-		tree_open $item
+		tree_expand $item
 	}
 	.tree item $parent -open true
 }
-proc tree_close {{parent {}}} {
+proc tree_collapse {{parent {}}} {
 	foreach item [.tree children $parent] {
-		tree_close $item
+		tree_collapse $item
 	}
 	.tree item $parent -open false
 }
@@ -509,9 +537,11 @@ proc save_conf {} {
 	close $fid
 }
 proc quit {} {
+	global lockfile
 	focus .
 	update
 	save_conf
+	file delete $lockfile
 	exit
 }
 proc show_info {} {
@@ -560,4 +590,3 @@ wm protocol . WM_DELETE_WINDOW {quit}
 wm protocol .info WM_DELETE_WINDOW {wm withdraw .info;grab release .info}
 
 load_tree
-
