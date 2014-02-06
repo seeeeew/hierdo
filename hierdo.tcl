@@ -1,7 +1,7 @@
 #!/usr/bin/env tclsh
 
 set windowtitle {Hierarchical ToDo}
-set version {0.4.2}
+set version {0.4.2.1}
 set license {The MIT License (MIT)
 
 Copyright (c) 2013 Sewan Aleanakian <sewan@nyox.de>
@@ -28,8 +28,8 @@ package require Tcl 8.5
 package require Tk
 package require tile
 package require msgcat
+package require comm
 namespace import ::msgcat::mc
-tk appname hierdo
 wm withdraw .
 
 ::msgcat::mcmset {} {
@@ -89,9 +89,9 @@ wm withdraw .
 set lockfile [file join $env(HOME) .hierdo_lock]
 if {[file exists $lockfile]} {
 	set lockfid [open $lockfile {RDONLY}]
-	set appname [string trim [read $lockfid]]
+	set appid [string trim [read $lockfid]]
 	close $lockfid
-	if {$appname != [tk appname] && ![catch {send $appname raise .}]} {
+	if {![catch {comm::comm send $appid raise .}]} {
 		exit
 	} else {
 		set answer [tk_messageBox -title $windowtitle -message [mc already_running] -icon warning -type yesno]
@@ -101,7 +101,7 @@ if {[file exists $lockfile]} {
 	}
 }
 set lockfid [open $lockfile {WRONLY CREAT TRUNC}]
-puts $lockfid [tk appname]
+puts $lockfid [comm::comm self]
 close $lockfid
 
 if {![catch {package require Tclx}]} {
