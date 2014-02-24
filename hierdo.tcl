@@ -1,7 +1,7 @@
 #!/usr/bin/env tclsh
 
 set windowtitle {Hierarchical ToDo}
-set version {0.4.2.1}
+set version {0.4.3}
 set license {The MIT License (MIT)
 
 Copyright (c) 2013 Sewan Aleanakian <sewan@nyox.de>
@@ -141,21 +141,22 @@ proc note_paste {W} {
 	}
 }
 proc build_gui {} {
-	global conf title version license
+	global conf title version license treeview
 
 	tk::panedwindow .pw -orient horizontal
 
 	ttk::frame .tf
-	ttk::treeview .tree -columns {time cost progress note} -displaycolumns {time cost progress} -selectmode browse -xscrollcommand {.treescrollx set} -yscrollcommand {.treescrolly set}
-	.tree column #0 -minwidth 100 -stretch true -width 200
-	.tree column time -minwidth 50 -stretch false -width 100 -anchor e
-	.tree column cost -minwidth 50 -stretch false -width 100 -anchor e
-	.tree column progress -minwidth 50 -stretch false -width 100 -anchor e
-	.tree heading #0 -text [mc title]
-	.tree heading time -text "[mc effort] (h)"
-	.tree heading cost -text "[mc cost] (€)"
-	.tree heading progress -text "[mc finished] (%)"
-	.tree tag configure toplevel -font [font create {*}[font configure TkDefaultFont] -weight bold]
+	frame .tb -highlightthickness 1 -highlightcolor black
+	set treeview [ttk::treeview .tb.tree -columns {time cost progress note} -displaycolumns {time cost progress} -selectmode browse -xscrollcommand {.treescrollx set} -yscrollcommand {.treescrolly set}]
+	.tb.tree column #0 -minwidth 100 -stretch true -width 200
+	.tb.tree column time -minwidth 50 -stretch false -width 100 -anchor e
+	.tb.tree column cost -minwidth 50 -stretch false -width 100 -anchor e
+	.tb.tree column progress -minwidth 50 -stretch false -width 100 -anchor e
+	.tb.tree heading #0 -text [mc title]
+	.tb.tree heading time -text "[mc effort] (h)"
+	.tb.tree heading cost -text "[mc cost] (€)"
+	.tb.tree heading progress -text "[mc finished] (%)"
+	.tb.tree tag configure toplevel -font [font create {*}[font configure TkDefaultFont] -weight bold]
 	ttk::scrollbar .treescrollx -orient horizontal -command {tree_xview}
 	ttk::scrollbar .treescrolly -orient vertical -command {tree_yview}
 
@@ -165,7 +166,8 @@ proc build_gui {} {
 	ttk::scrollbar .notescrollx -orient horizontal -command {.note xview}
 	ttk::scrollbar .notescrolly -orient vertical -command {.note yview}
 
-	grid .tree .treescrolly -in .tf -sticky nesw
+	pack .tb.tree -in .tb -expand true -fill both
+	grid .tb .treescrolly -in .tf -sticky nesw
 	grid .treescrollx -in .tf -sticky nesw
 	grid columnconfigure .tf 0 -weight 1
 	grid rowconfigure .tf 0 -weight 1
@@ -178,9 +180,9 @@ proc build_gui {} {
 	.pw add .nf -stretch never -minsize 200
 	pack .pw -expand true -fill both
 
-	ttk::entry .tree.tetitle
-	ttk::spinbox .tree.tetime -from 0 -to 1000000000 -increment 1 -wrap false -justify right -format {%.2f}
-	ttk::spinbox .tree.tecost -from 0 -to 1000000000 -increment 100 -wrap false -justify right -format {%.2f}
+	ttk::entry .tb.tree.tetitle
+	ttk::spinbox .tb.tree.tetime -from 0 -to 1000000000 -increment 1 -wrap false -justify right -format {%.2f}
+	ttk::spinbox .tb.tree.tecost -from 0 -to 1000000000 -increment 100 -wrap false -justify right -format {%.2f}
 
 	menu .treemenu -tearoff false
 	
@@ -195,8 +197,8 @@ proc build_gui {} {
 	
 	ttk::frame .info.tabs.version
 	ttk::frame .info.tabs.license
-	text .info.tabs.license.text -height 0 -font {TkFixedFont} -xscrollcommand {.info.tabs.license.x set} -yscrollcommand {.info.tabs.license.y set}
-	.info.tabs.license.text insert 0.0 $license
+	text .info.tabs.license.text -height 0 -font {TkFixedFont} -wrap word -xscrollcommand {.info.tabs.license.x set} -yscrollcommand {.info.tabs.license.y set}
+	.info.tabs.license.text insert 0.0 [regsub -all {([^\n])\n([^\n])} $license {\1 \2}]
 	.info.tabs.license.text configure -state disabled
 	ttk::scrollbar .info.tabs.license.x -orient horizontal -command {.info.tabs.license.text xview}
 	ttk::scrollbar .info.tabs.license.y -orient vertical -command {.info.tabs.license.text yview}
@@ -217,20 +219,20 @@ proc build_gui {} {
 	load_conf
 }
 proc tree_xview {args} {
-	.tree xview {*}$args
+	.tb.tree xview {*}$args
 	redraw_editor
 }
 proc tree_yview {args} {
-	.tree yview {*}$args
+	.tb.tree yview {*}$args
 	redraw_editor
 }
 
 proc show_popup {X Y x y} {
 	global clicked copied
-	set item [.tree identify item $x $y]
+	set item [.tb.tree identify item $x $y]
 	set clicked $item
-	if {[lsearch [.tree selection] $item] < 0} {
-		.tree selection set $item
+	if {[lsearch [.tb.tree selection] $item] < 0} {
+		.tb.tree selection set $item
 	}
 	
 	.treemenu delete 0 end
@@ -243,8 +245,8 @@ proc show_popup {X Y x y} {
 	.treemenu add command -label [mc cut] -command {item_cut} -state [expr {$clicked == {} ? {disabled} : {normal}}]
 	.treemenu add command -label [mc delete] -command {item_delete} -state [expr {$clicked == {} ? {disabled} : {normal}}]
 	.treemenu add separator
-	.treemenu add command -label [expr {[llength [.tree children $clicked]] ? [mc all_finished] : [mc finished]}] -command {item_complete} -state [expr {$clicked == {} ? {disabled} : {normal}}]
-	.treemenu add command -label [expr {[llength [.tree children $clicked]] ? [mc all_unfinished] : [mc unfinished]}] -command {item_uncomplete} -state [expr {$clicked == {} ? {disabled} : {normal}}]
+	.treemenu add command -label [expr {[llength [.tb.tree children $clicked]] ? [mc all_finished] : [mc finished]}] -command {item_complete} -state [expr {$clicked == {} ? {disabled} : {normal}}]
+	.treemenu add command -label [expr {[llength [.tb.tree children $clicked]] ? [mc all_unfinished] : [mc unfinished]}] -command {item_uncomplete} -state [expr {$clicked == {} ? {disabled} : {normal}}]
 	.treemenu add separator
 	.treemenu add command -label [mc expand_all] -command {tree_expand $clicked}
 	.treemenu add command -label [mc collapse_all] -command {tree_collapse $clicked}
@@ -254,18 +256,18 @@ proc show_popup {X Y x y} {
 	tk_popup .treemenu $X $Y
 }
 proc get_progress {item} {
-	return [expr {[.tree set $item progress] != {}}]
+	return [expr {[.tb.tree set $item progress] != {}}]
 }
 proc item_complete {{item {}}} {
 	global clicked checkmark
 	if {$item == {}} {set item $clicked}
-	set children [.tree children $item]
+	set children [.tb.tree children $item]
 	if {[llength $children]} {
 		foreach child $children {
 			item_complete $child
 		}
 	} else {
-		.tree set $item progress $checkmark
+		.tb.tree set $item progress $checkmark
 	}
 	if {$item == $clicked} {
 		recalc
@@ -275,13 +277,13 @@ proc item_complete {{item {}}} {
 proc item_uncomplete {{item {}}} {
 	global clicked
 	if {$item == {}} {set item $clicked}
-	set children [.tree children $item]
+	set children [.tb.tree children $item]
 	if {[llength $children]} {
 		foreach child $children {
 			item_uncomplete $child
 		}
 	} else {
-		.tree set $item progress {}
+		.tb.tree set $item progress {}
 	}
 	if {$item == $clicked} {
 		recalc
@@ -294,32 +296,32 @@ proc item_new {position} {
 		set parent $clicked
 		set index end
 	} else {
-		set parent [.tree parent $clicked]
-		set index [.tree index $clicked]
+		set parent [.tb.tree parent $clicked]
+		set index [.tb.tree index $clicked]
 	}
-	set item [.tree insert $parent $index -text [mc new]]
-	if {$parent == {}} {.tree tag add toplevel $item}
-	.tree set $item time 0.00
-	.tree set $item cost 0.00
-	.tree set $item progress {}
-	.tree set $item note {}
-	.tree item $parent -open true
-	.tree selection set $item
+	set item [.tb.tree insert $parent $index -text [mc new]]
+	if {$parent == {}} {.tb.tree tag add toplevel $item}
+	.tb.tree set $item time 0.00
+	.tb.tree set $item cost 0.00
+	.tb.tree set $item progress {}
+	.tb.tree set $item note {}
+	.tb.tree item $parent -open true
+	.tb.tree selection set $item
 	refresh_note
 	recalc
 	save_tree
 }
 proc tree_expand {{parent {}}} {
-	foreach item [.tree children $parent] {
+	foreach item [.tb.tree children $parent] {
 		tree_expand $item
 	}
-	.tree item $parent -open true
+	.tb.tree item $parent -open true
 }
 proc tree_collapse {{parent {}}} {
-	foreach item [.tree children $parent] {
+	foreach item [.tb.tree children $parent] {
 		tree_collapse $item
 	}
-	.tree item $parent -open false
+	.tb.tree item $parent -open false
 }
 proc item_paste {position} {
 	global clicked copied
@@ -327,23 +329,23 @@ proc item_paste {position} {
 		set parent $clicked
 		set index end
 	} else {
-		set parent [.tree parent $clicked]
-		set index [.tree index $clicked]
+		set parent [.tb.tree parent $clicked]
+		set index [.tb.tree index $clicked]
 	}
 	foreach item $copied {
 		import_tree $item $parent $index
-		.tree item $parent -open true
+		.tb.tree item $parent -open true
 	}
 	if {[llength $copied] == 1} {
-		.tree selection set [lindex [.tree children $parent] $index]
+		.tb.tree selection set [lindex [.tb.tree children $parent] $index]
 	} elseif {[llength $copied] > 1} {
-		.tree selection set $parent
+		.tb.tree selection set $parent
 	}
 	recalc
 }
 proc item_copy {} {
 	global clicked copied
-	set copied [list [list [.tree item $clicked -text] {*}[.tree item $clicked -values] [export_tree $clicked]]]
+	set copied [list [list [.tb.tree item $clicked -text] {*}[.tb.tree item $clicked -values] [export_tree $clicked]]]
 }
 proc item_cut {} {
 	global clicked
@@ -352,8 +354,8 @@ proc item_cut {} {
 }
 proc item_delete {} {
 	global clicked item column editor
-	.tree set [.tree parent $clicked] progress {}
-	.tree delete $clicked
+	.tb.tree set [.tb.tree parent $clicked] progress {}
+	.tb.tree delete $clicked
 	set item {}
 	set column {}
 	set editor {}
@@ -365,7 +367,7 @@ proc item_delete {} {
 proc tree_select {} {
 	global item
 	save_note
-	set selection [.tree selection]
+	set selection [.tb.tree selection]
 	if {[llength $selection] == 1} {
 		set item [lindex $selection 0]
 	}
@@ -375,28 +377,28 @@ proc refresh_note {} {
 	global item
 	.note configure -state normal
 	.note delete 0.0 end
-	.note insert end [.tree set $item note]
+	.note insert end [.tb.tree set $item note]
 }
 proc save_note {} {
 	global item
 	if {$item == {}} return
-	.tree set $item note [.note get 0.0 {end - 1 chars}]
+	.tb.tree set $item note [.note get 0.0 {end - 1 chars}]
 	save_tree
 }
 proc redraw_editor {} {
 	global item column editor
 	if {$item != {} && [winfo exists $editor]} {
-		lassign [.tree bbox $item $column] x y width height
-		place $editor -in .tree -x $x -y $y -width $width -height $height
+		lassign [.tb.tree bbox $item $column] x y width height
+		place $editor -in .tb.tree -x $x -y $y -width $width -height $height
 		focus $editor
 	}
 }
 proc show_editor {} {
 	global item column editor
 	if {![winfo exists $editor]} return
-	set values(.tree.tetitle) [.tree item $item -text]
-	set values(.tree.tetime) [.tree set $item time]
-	set values(.tree.tecost) [.tree set $item cost]
+	set values(.tb.tree.tetitle) [.tb.tree item $item -text]
+	set values(.tb.tree.tetime) [.tb.tree set $item time]
+	set values(.tb.tree.tecost) [.tb.tree set $item cost]
 	set value [set values($editor)]
 	$editor delete 0 end
 	$editor insert 0 $value
@@ -414,10 +416,10 @@ proc hide_editor {{save true}} {
 		if {[winfo exists $editor]} {
 			set value [$editor get]
 			if {$column == {#0}} {
-				.tree item $item -text $value
+				.tb.tree item $item -text $value
 			} else {
-				if {[.tree set $item $column] != $value} {
-					.tree set $item $column $value
+				if {[.tb.tree set $item $column] != $value} {
+					.tb.tree set $item $column $value
 					recalc
 				}
 			}
@@ -427,10 +429,10 @@ proc hide_editor {{save true}} {
 	set item {}
 	set column {}
 	set editor {}
-	foreach slave [place slaves .tree] {place forget $slave}
+	foreach slave [place slaves .tb.tree] {place forget $slave}
 }
 proc recalc {{item {}}} {
-	set children [.tree children $item]
+	set children [.tb.tree children $item]
 	if {[llength $children]} {
 		set sum_time 0
 		set sum_cost 0
@@ -442,32 +444,32 @@ proc recalc {{item {}}} {
 			set sum_time_done [expr $sum_time_done+($time*$progress)]
 		}
 		set sum_progress [expr $sum_time>0?(1.0*$sum_time_done/$sum_time):1]
-		.tree set $item time [format %.2f $sum_time]
-		.tree set $item cost [format %.2f $sum_cost]
+		.tb.tree set $item time [format %.2f $sum_time]
+		.tb.tree set $item cost [format %.2f $sum_cost]
 		if {$sum_time > 0} {
-			.tree set $item progress [format %.1f [expr $sum_progress*100]]
+			.tb.tree set $item progress [format %.1f [expr $sum_progress*100]]
 		} else {
-			.tree set $item progress {}
+			.tb.tree set $item progress {}
 		}
 		set sums [list $sum_time $sum_cost $sum_progress]
 	} else {
-		set sums [list [.tree set $item time] [.tree set $item cost] [get_progress $item]]
+		set sums [list [.tb.tree set $item time] [.tb.tree set $item cost] [get_progress $item]]
 	}
 	return $sums
 }
 
 proc import_tree {tree {parent {}} {index end}} {
-	set item [.tree insert $parent $index -text [lindex $tree 0] -values [lrange $tree 1 end-1] -open false]
-	if {$parent == {}} {.tree tag add toplevel $item}
+	set item [.tb.tree insert $parent $index -text [lindex $tree 0] -values [lrange $tree 1 end-1] -open false]
+	if {$parent == {}} {.tb.tree tag add toplevel $item}
 	foreach child [lindex $tree end] {
 		import_tree $child $item
 	}
 }
 proc export_tree {{parent {}}} {
 	set tree [list]
-	foreach item [.tree children $parent] {
-		set title [.tree item $item -text]
-		set values [.tree item $item -values]
+	foreach item [.tb.tree children $parent] {
+		set title [.tb.tree item $item -text]
+		set values [.tb.tree item $item -values]
 		set children [export_tree $item]
 		lappend tree [list $title {*}$values $children]
 	}
@@ -508,19 +510,20 @@ proc load_conf {} {
 		wm geometry . "$conf(window_width)x$conf(window_height)"
 	}
 	if {[info exists conf(separator_x)]} {
+		update
 		.pw sash place 0 $conf(separator_x) 1
 	}
 	if {[info exists conf(title_width)]} {
-		.tree column #0 -width $conf(title_width)
+		.tb.tree column #0 -width $conf(title_width)
 	}
 	if {[info exists conf(time_width)]} {
-		.tree column time -width $conf(time_width)
+		.tb.tree column time -width $conf(time_width)
 	}
 	if {[info exists conf(cost_width)]} {
-		.tree column cost -width $conf(cost_width)
+		.tb.tree column cost -width $conf(cost_width)
 	}
 	if {[info exists conf(progress_width)]} {
-		.tree column progress -width $conf(progress_width)
+		.tb.tree column progress -width $conf(progress_width)
 	}
 }
 proc save_conf {} {
@@ -530,10 +533,10 @@ proc save_conf {} {
 	puts $fid "window_width [winfo width .]"
 	puts $fid "window_height [winfo height .]"
 	puts $fid "separator_x [lindex [.pw sash coord 0] 0]"
-	puts $fid "title_width [.tree column #0 -width]"
-	puts $fid "time_width [.tree column time -width]"
-	puts $fid "cost_width [.tree column cost -width]"
-	puts $fid "progress_width [.tree column progress -width]"
+	puts $fid "title_width [.tb.tree column #0 -width]"
+	puts $fid "time_width [.tb.tree column time -width]"
+	puts $fid "cost_width [.tb.tree column cost -width]"
+	puts $fid "progress_width [.tb.tree column progress -width]"
 	close $fid
 }
 proc quit {} {
@@ -551,26 +554,26 @@ proc show_info {} {
 
 build_gui
 
-bind .tree <Button-3> {show_popup %X %Y %x %y}
-bind .tree.tetitle <FocusOut> {hide_editor}
-bind .tree.tetime <FocusOut> {hide_editor}
-bind .tree.tecost <FocusOut> {hide_editor}
-bind .tree.tetitle <Return> {hide_editor}
-bind .tree.tetime <Return> {hide_editor}
-bind .tree.tecost <Return> {hide_editor}
-bind .tree.tetitle <Escape> {hide_editor false}
-bind .tree.tetime <Escape> {hide_editor false}
-bind .tree.tecost <Escape> {hide_editor false}
+bind .tb.tree <Button-3> {show_popup %X %Y %x %y}
+bind .tb.tree.tetitle <FocusOut> {hide_editor}
+bind .tb.tree.tetime <FocusOut> {hide_editor}
+bind .tb.tree.tecost <FocusOut> {hide_editor}
+bind .tb.tree.tetitle <Return> {hide_editor}
+bind .tb.tree.tetime <Return> {hide_editor}
+bind .tb.tree.tecost <Return> {hide_editor}
+bind .tb.tree.tetitle <Escape> {hide_editor false}
+bind .tb.tree.tetime <Escape> {hide_editor false}
+bind .tb.tree.tecost <Escape> {hide_editor false}
 bind .note <FocusOut> {save_note}
 bind .nf <Configure> {focus .pw}
-bind .tree <Double-1> {
+bind .tb.tree <Double-1> {
 	set clicked $item
-	set item [.tree identify item %x %y]
-	set column [.tree identify column %x %y]
+	set item [.tb.tree identify item %x %y]
+	set column [.tb.tree identify column %x %y]
 	if {$column == {#0}} {
-		set editor .tree.tetitle
-	} elseif {[.tree column $column -id] == {progress}} {
-		if {![llength [.tree children $item]]} {
+		set editor .tb.tree.tetitle
+	} elseif {[.tb.tree column $column -id] == {progress}} {
+		if {![llength [.tb.tree children $item]]} {
 			if {[get_progress $item]} {
 				item_uncomplete $item
 			} else {
@@ -578,13 +581,13 @@ bind .tree <Double-1> {
 			}
 		}
 	} else {
-		if {[llength [.tree children $item]]} {return}
-		set editor .tree.te[.tree column $column -id]
+		if {[llength [.tb.tree children $item]]} {return}
+		set editor .tb.tree.te[.tb.tree column $column -id]
 	}
 	show_editor
 }
-bind .tree <Configure> {hide_editor}
-bind .tree <<TreeviewSelect>> {tree_select}
+bind .tb.tree <Configure> {hide_editor}
+bind .tb.tree <<TreeviewSelect>> {tree_select}
 
 wm protocol . WM_DELETE_WINDOW {quit}
 wm protocol .info WM_DELETE_WINDOW {wm withdraw .info;grab release .info}
