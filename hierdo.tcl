@@ -1,7 +1,7 @@
 #!/usr/bin/env tclsh
 
 set windowtitle {Hierarchical ToDo}
-set version {0.4.3}
+set version {0.4.4}
 set license {The MIT License (MIT)
 
 Copyright (c) 2013 Sewan Aleanakian <sewan@nyox.de>
@@ -159,6 +159,7 @@ proc build_gui {} {
 	.tb.tree tag configure toplevel -font [font create {*}[font configure TkDefaultFont] -weight bold]
 	ttk::scrollbar .treescrollx -orient horizontal -command {tree_xview}
 	ttk::scrollbar .treescrolly -orient vertical -command {tree_yview}
+	label $treeview.line -background red
 
 	ttk::frame .nf
 	ttk::label .note_l -text "[mc note]:"
@@ -551,6 +552,63 @@ proc show_info {} {
 	wm deiconify .info
 	grab set .info
 }
+set drag_from {}
+set drag_to {}
+proc drag_start {x y} {
+	global treeview drag_from drag_to
+	set drag_from [$treeview identify row $x $y]
+	set drag_to {}
+}
+proc drag_update {x y} {
+	global treeview drag_from drag_to
+	if {[llength $drag_from]} {
+		set over [$treeview identify row $x $y]
+		set bbox [$treeview bbox $over #0]
+		if {![llength $bbox] || $over == $drag_from} {
+			set drag_to {}
+			place forget $treeview.line
+		} else {
+			lassign $bbox bb_x bb_y bb_w bb_h
+			set line_x $bb_x
+			set line_y [expr $y < $bb_y+$bb_h/2.0 ? $bb_y-2 : $bb_y+$bb_h-2]
+			set parent [$treeview parent $over]
+			set index [$treeview index $over]
+			if {$parent == [$treeview parent $drag_from] && $index > [$treeview index $drag_from]} {incr index -1}
+			if {[expr $y >= $bb_y+$bb_h*0.5] && $over != $drag_from} {incr index}
+			set width [lindex $bbox 2]
+			if {$parent == [$treeview parent $drag_from] && $index == [$treeview index $drag_from] || [child_of $drag_from $over]} {
+				set drag_to {}
+				place forget $treeview.line
+			} else {
+				set drag_to [list $parent $index]
+				place $treeview.line -height 4 -width $width -x $line_x -y $line_y
+			}
+		}
+	}
+}
+proc drag_end {} {
+	global treeview drag_from drag_to
+	if {[llength $drag_to]} {
+		$treeview move $drag_from {*}$drag_to
+		if {[lindex $drag_to 0] == {}} {
+			$treeview tag add toplevel $drag_from
+		} else {
+			$treeview tag remove toplevel $drag_from
+		}
+	}
+	place forget $treeview.line
+	set drag_from {}
+	set drag_to {}
+}
+proc child_of {parent child} {
+	global treeview
+	set result false
+	while {$child != {}} {
+		set child [$treeview parent $child]
+		if {$child == $parent} {set result true}
+	}
+	return $result
+}
 
 build_gui
 
@@ -588,6 +646,10 @@ bind .tb.tree <Double-1> {
 }
 bind .tb.tree <Configure> {hide_editor}
 bind .tb.tree <<TreeviewSelect>> {tree_select}
+bind .tb.tree <ButtonPress-1> {drag_start %x %y}
+bind .tb.tree <Motion> {drag_update %x %y}
+bind .tb.tree <ButtonRelease-1> {drag_end}
+bind .tb.tree <Escape> {if {[llength $drag_from]} {set drag_to {};place forget $treeview.line};set drag_from {}}
 
 wm protocol . WM_DELETE_WINDOW {quit}
 wm protocol .info WM_DELETE_WINDOW {wm withdraw .info;grab release .info}
