@@ -1,7 +1,7 @@
 #!/usr/bin/env tclsh
 
 set windowtitle {Hierarchical ToDo}
-set version {0.4.4}
+set version {0.4.4.1}
 set license {The MIT License (MIT)
 
 Copyright (c) 2013 Sewan Aleanakian <sewan@nyox.de>
@@ -590,6 +590,8 @@ proc drag_end {} {
 	global treeview drag_from drag_to
 	if {[llength $drag_to]} {
 		$treeview move $drag_from {*}$drag_to
+		recalc
+		save_tree
 		if {[lindex $drag_to 0] == {}} {
 			$treeview tag add toplevel $drag_from
 		} else {
