@@ -1,10 +1,11 @@
 #!/usr/bin/env tclsh
 
 set windowtitle {Hierarchical ToDo}
-set version {0.4.4.1}
+set version {0.4.4.2}
+set date {2014-04-03}
 set license {The MIT License (MIT)
 
-Copyright (c) 2013 Sewan Aleanakian <sewan@nyox.de>
+Copyright (c) Sewan Aleanakian <sewan@nyox.de>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -488,6 +489,10 @@ proc load_tree {{file {}}} {
 	}
 	recalc
 	set treedata [export_tree]
+	update
+	.tb.tree selection set [lindex [.tb.tree children {}] 0]
+	.tb.tree focus [lindex [.tb.tree children {}] 0]
+	focus .tb.tree
 }
 proc save_tree {{file {}}} {
 	global env treedata
